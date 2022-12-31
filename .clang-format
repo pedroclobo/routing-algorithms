@@ -1,0 +1,7 @@
+---
+ColumnLimit:     200
+IndentWidth:     8
+SortIncludes:    true
+SortUsingDeclarations: false
+UseTab:          ForIndentation
+---
