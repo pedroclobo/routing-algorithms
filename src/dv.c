@@ -51,8 +51,11 @@ bool bellman_ford() {
 
 		// If min_cost is different from the distance vector value, update it.
 		// If via is different from the previous via, update it, but signal no changes in the distance vector.
-		if ((min_cost != state->dvs[get_current_node()][y]) || (state->dvs[get_current_node()][y] != COST_INFINITY && (state->via[y] != via))) {
-			if (min_cost != state->dvs[get_current_node()][y]) {
+		bool changed_dv = min_cost != state->dvs[get_current_node()][y];
+		bool changed_via = state->dvs[get_current_node()][y] != COST_INFINITY && state->via[y] != via;
+		if (changed_dv || changed_via) {
+			// Distance vector changed.
+			if (changed_dv) {
 				changed = true;
 			}
 
@@ -68,6 +71,23 @@ bool bellman_ford() {
 	}
 
 	return changed;
+}
+
+// Send message to neighbors.
+void send_messages() {
+	state_t *state = (state_t *)get_state();
+
+	// Create message.
+	message_t message;
+	message.data = (data_t *)malloc(sizeof(data_t));
+	memcpy(message.data, state->dvs[get_current_node()], sizeof(data_t));
+	message.size = sizeof(message.data);
+
+	for (node_t neighbor = get_first_node(); neighbor <= get_last_node(); neighbor = get_next_node(neighbor)) {
+		if (get_link_cost(neighbor) < COST_INFINITY && neighbor != get_current_node()) {
+			send_message(neighbor, message);
+		}
+	}
 }
 
 // Handler for the node to allocate and initialize its state.
@@ -94,23 +114,12 @@ void *init_state() {
 
 // Notify a node that a neighboring link has changed cost.
 void notify_link_change(node_t neighbor, cost_t new_cost) {
-	state_t *state = (state_t *)get_state();
-
 	// Recompute distance vector.
 	bool changed = bellman_ford();
 
 	// Send message to neighbors if distance vector changed.
-	message_t message;
-	message.data = (data_t *)malloc(sizeof(data_t));
-	memcpy(message.data, state->dvs[get_current_node()], sizeof(data_t));
-	message.size = sizeof(message.data);
-
 	if (changed) {
-		for (node_t node = get_first_node(); node <= get_last_node(); node = get_next_node(node)) {
-			if (get_link_cost(node) < COST_INFINITY && node != get_current_node()) {
-				send_message(node, message);
-			}
-		}
+		send_messages();
 	}
 }
 
@@ -126,17 +135,7 @@ void notify_receive_message(node_t sender, message_t message) {
 	bool changed = bellman_ford();
 
 	// Send message to neighbors if distance vector changed.
-	message_t new_message;
-	new_message.data = (data_t *)malloc(sizeof(data_t));
-	memcpy(new_message.data, state->dvs[get_current_node()], sizeof(data_t));
-	new_message.size = sizeof(new_message.data);
-
 	if (changed) {
-		for (node_t node = get_first_node(); node <= get_last_node(); node = get_next_node(node)) {
-			cost_t link_cost = get_link_cost(node);
-			if (link_cost < COST_INFINITY && node != get_current_node()) {
-				send_message(node, new_message);
-			}
-		}
+		send_messages();
 	}
 }
