@@ -65,9 +65,24 @@ bool is_in_tree(node_t node, node_t *tree, size_t size) {
 	return false;
 }
 
+// Get the next hop for a destination.
+node_t get_via(cost_t cost[][MAX_NODES], node_t *pred, node_t dest) {
+	// The node can't be reached.
+	if (cost[get_current_node()][dest] == COST_INFINITY) {
+		return -1;
+	}
+
+	node_t node;
+	for (node = dest; pred[node] != get_current_node(); node = pred[node]) {
+		;
+	}
+
+	return node;
+}
+
 // Find the minimum cost node that is not in the tree.
 // Set min_node and min_cost to the corresponding values.
-void min(cost_t matrix[][MAX_NODES], node_t *tree, size_t size, node_t *min_node, cost_t *min_cost) {
+void min(cost_t cost[][MAX_NODES], node_t *tree, size_t size, node_t *min_node, cost_t *min_cost) {
 	*min_cost = COST_INFINITY;
 	*min_node = -1;
 
@@ -77,45 +92,29 @@ void min(cost_t matrix[][MAX_NODES], node_t *tree, size_t size, node_t *min_node
 			continue;
 		}
 
-		if (matrix[get_current_node()][node] >= *min_cost && *min_node != -1) {
-			continue;
+		if (cost[get_current_node()][node] < *min_cost || *min_node == -1) {
+			// Found new minimum.
+			*min_cost = cost[get_current_node()][node];
+			*min_node = node;
 		}
-
-		// Found new minimum.
-		*min_cost = matrix[get_current_node()][node];
-		*min_node = node;
 	}
 }
 
-// Get the next hop for a destination.
-node_t get_via(cost_t matrix[][MAX_NODES], node_t *predecessors, node_t destination) {
-	// The node can't be reached.
-	if (matrix[get_current_node()][destination] == COST_INFINITY) {
-		return -1;
-	}
-
-	node_t aux = destination;
-	while (predecessors[aux] != get_current_node()) {
-		aux = predecessors[aux];
-	}
-
-	return aux;
-}
-
+// Compute the shortest path tree.
 void dijkstra() {
 	state_t *state = (state_t *)get_state();
 
 	// Initialize predecessors.
-	node_t predecessors[MAX_NODES];
+	node_t pred[MAX_NODES];
 	for (node_t node = 0; node <= get_last_node(); node = get_next_node(node)) {
-		predecessors[node] = get_current_node();
+		pred[node] = get_current_node();
 	}
 
 	// Initialize cost matrix.
-	cost_t matrix[MAX_NODES][MAX_NODES];
+	cost_t cost[MAX_NODES][MAX_NODES];
 	for (node_t node1 = 0; node1 <= get_last_node(); node1 = get_next_node(node1)) {
 		for (node_t node2 = 0; node2 <= get_last_node(); node2 = get_next_node(node2)) {
-			matrix[node1][node2] = state->cost[node1][node2];
+			cost[node1][node2] = state->cost[node1][node2];
 		}
 	}
 
@@ -130,7 +129,7 @@ void dijkstra() {
 		node_t w = -1;
 
 		// Find the node with the minimum cost that is not in the tree.
-		min(matrix, tree, size, &w, &min_cost);
+		min(cost, tree, size, &w, &min_cost);
 
 		// Add it to the tree.
 		tree[size++] = w;
@@ -143,10 +142,10 @@ void dijkstra() {
 			}
 
 			// Update cost.
-			cost_t new_cost = COST_ADD(matrix[get_current_node()][w], matrix[w][x]);
-			if (new_cost < matrix[get_current_node()][x]) {
-				matrix[get_current_node()][x] = new_cost;
-				predecessors[x] = w;
+			cost_t new_cost = COST_ADD(cost[get_current_node()][w], cost[w][x]);
+			if (new_cost < cost[get_current_node()][x]) {
+				cost[get_current_node()][x] = new_cost;
+				pred[x] = w;
 			}
 		}
 	}
@@ -154,16 +153,16 @@ void dijkstra() {
 	// Update nodes.
 	for (int n = 0; n < size; n++) {
 		node_t node = tree[n];
-		node_t via = get_via(matrix, predecessors, node);
+		node_t via = get_via(cost, pred, node);
 
 		// Already up to date.
-		if (node == get_current_node() || (state->cost[get_current_node()][node] == matrix[get_current_node()][node] && state->via[node] == via)) {
+		if (node == get_current_node() || (state->cost[get_current_node()][node] == cost[get_current_node()][node] && state->via[node] == via)) {
 			continue;
 		}
 
 		// Update via and set route.
 		state->via[node] = via;
-		set_route(node, via, matrix[get_current_node()][node]);
+		set_route(node, via, cost[get_current_node()][node]);
 	}
 }
 
